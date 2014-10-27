@@ -17,8 +17,27 @@ class AutoloaderTest extends \PHPUnit_Framework_TestCase {
 
     public function testRegistrationFunctions() {
         $loader = new Autoloader();
-        $loader->registerNamespace('Foo', __DIR__ . '/assets/Foo');
-        var_dump($loader->getRegisteredNamespaces());die();
+        $loader->registerNamespacePath('Foo', __DIR__ . '/assets/Foo');
+        $this->assertArrayHasKey('Foo', $loader->getRegisteredNamespaces());
+    }
+
+    public function testLoading() {
+        $loader = new Autoloader();
+        $loader->registerNamespacePath('Foo', __DIR__ . '/assets');
+        $loader->registerNamespaceSharedPaths(__DIR__ . '/assets/AllNamespaces');
+        $loader->registerSharedPath(__DIR__ . '/assets/custom', true);
+
+
+        $location = $loader->detectClassLocation('Foo\\FooClass');
+        $this->assertEquals(__DIR__ . '/assets/Foo/FooClass.php', $location, 'Class with namespace found');
+
+        $location = $loader->detectClassLocation('Foo\\Inner\\FooInner');
+        $this->assertEquals(__DIR__ . '/assets/Foo/Inner/FooInner.php', $location, 'Class with inner namespace found');
+
+        $this->assertNull($loader->detectClassLocation('NonExistsClass'));
+
+        $this->assertNotNull($loader->detectClassLocation('Foo2\\AltFooClass'));
+        $this->assertNotNull($loader->detectClassLocation('User'));
     }
 
 
