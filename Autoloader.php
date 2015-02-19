@@ -4,160 +4,117 @@
  *
  * @author Alexandr Viniychuk <alexandr.viniychuk@icloud.com>
  * @copyright 2009-2014, Alexandr Viniychuk
- * created: 02.11.14 11:14
+ * created: 27.10.14 08:37
  */
 
-namespace Solve\Application;
+namespace Solve\Autoloader;
 
 
-use Solve\Config\Config;
-use Solve\Controller\ControllerService;
-use Solve\Http\Request;
-use Solve\Kernel\DC;
-use Solve\Kernel\Kernel;
-use Solve\Router\ApplicationRoute;
-use Solve\Router\Router;
-use Solve\Storage\ArrayStorage;
-use Solve\Storage\YamlStorage;
-use Solve\Utils\Inflector;
-use Solve\View\View;
+class Autoloader {
 
-class Application {
+    private $_namespacesPaths = array();
+    private $_prefixesPaths = array();
+    private $_namespacesSharedDirs = array();
+    private $_sharedPaths = array();
 
-    protected $_name;
-    protected $_namespace;
-    protected $_root;
-    protected $_controllersRoot;
-
-    /**
-     * @var ApplicationRoute
-     */
-    protected $_route;
-    /**
-     * @var YamlStorage
-     */
-    protected $_config;
-
-    public function run() {
-        $this->detectApplication();
-        $this->boot();
-        $this->configure();
-        $this->process();
+    public function getRegisteredNamespaces() {
+        return $this->_namespacesPaths;
     }
 
-    public function boot() {
-        $this->_config          = new YamlStorage($this->getRoot() . 'config.yml');
-        if (!$this->_config->has('routes')) {
-            throw new \Exception('Routes not found for app [' . $this->_name . '], in ' . $this->_config->getPath());
-        }
-        DC::getRouter()->addRoutes($this->_config->get('routes'));
-        $this->detectApplicationRoute();
-    }
-
-    public function configure() {
-        DC::getView()->setTemplatesPath($this->getRoot() . 'Views/')->setRenderEngineName('Slot');
-
-    }
-
-    public function process() {
-        if (ControllerService::isControllerExists('ApplicationController')) {
-            ControllerService::getController('ApplicationController')->_preAction();
-        }
-        ControllerService::processControllerAction($this->_route->getControllerName(), $this->_route->getActionName());
-        if (ControllerService::isControllerExists('ApplicationController')) {
-            ControllerService::getController('ApplicationController')->_postAction();
-        }
-        DC::getView()->render();
-    }
-
-    public function detectApplicationRoute() {
-        $route = DC::getRouter()->processRequest(Request::getIncomeRequest())->getCurrentRoute();
-        if ($route->isNotFound()) {
-            DC::getEventDispatcher()->dispatchEvent('route.notFound');
-            die();
-        }
-        $this->_route = new ApplicationRoute($route);
+    public function registerNamespacePath($namespaceName, $paths) {
+        if (empty($this->_namespacesPaths[$namespaceName])) $this->_namespacesPaths[$namespaceName] = array();
+        $this->_namespacesPaths[$namespaceName] = array_merge($this->_namespacesPaths[$namespaceName], (array)$paths);
         return $this;
     }
 
+    public function registerNamespaceSharedPaths($path) {
+        $this->_namespacesSharedDirs = array_merge($this->_namespacesSharedDirs, (array)$path);
+        return $this;
+    }
 
-    public function detectApplication() {
-        DC::getEventDispatcher()->dispatchEvent('route.buildRequest', Request::getIncomeRequest());
-        /**
-         * @var ArrayStorage $appList
-         */
-        $appList = DC::getProjectConfig('applications');
-        if (empty($appList)) {
-            throw new \Exception('Empty application list');
-        }
-        $defaultAppName = DC::getProjectConfig('defaultApplication', 'frontend');
-        $this->_name    = $defaultAppName;
-        $uri = (string)Request::getIncomeRequest()->getUri();
-        $uriParts       = explode('/', $uri);
-        if (!empty($uriParts) && ((count($uriParts) > 0) && ($uriParts[0] != '/'))) {
-            foreach ($appList as $appName => $appParams) {
-                if ($appName == $defaultAppName) continue;
+    public function registerPrefix($prefix, $paths) {
+        if (empty($this->_prefixesPaths[$prefix])) $this->_prefixesPaths[$prefix] = array();
+        $this->_prefixesPaths[$prefix] = array_merge($this->_prefixesPaths[$prefix], (array)$paths);
+        return $this;
+    }
 
-                $appUri = !empty($appParams['uri']) ? $appParams['uri'] : $appName;
-                if (strpos($uriParts[0], $appUri) === 0) {
-                    array_shift($uriParts);
-                    Request::getIncomeRequest()->setUri(implode('/', $uriParts));
-                    $this->_name = $appName;
-                    break;
+    public function registerSharedPath($paths, $recursive = false) {
+        $paths = (array)$paths;
+        if ($recursive) {
+            foreach($paths as $path) {
+                foreach(glob($path . '/*') as $filePath) {
+                    if (is_dir($filePath)) {
+                        $this->_sharedPaths[] = $filePath;
+                    }
                 }
             }
         }
-        $this->_config = DC::getProjectConfig('applications/' . $this->_name);
-        if (!is_array($this->_config)) {
-            $this->_config = array(
-                'uri' => $this->_name,
-            );
+        $this->_sharedPaths = array_merge($this->_sharedPaths, $paths);
+        $this->_sharedPaths = array_unique($this->_sharedPaths);
+        return $this;
+    }
+
+    public function detectClassLocation($className) {
+        if (($pos = strrpos($className, '\\')) !== false) {
+            $namespace = substr($className, 0, $pos);
+            $className = substr($className, $pos + 2);
+            $classNameAsPath = str_replace('\\', DIRECTORY_SEPARATOR, $namespace) . DIRECTORY_SEPARATOR . str_replace('_', DIRECTORY_SEPARATOR, $className) . '.php';
+            foreach($this->_namespacesPaths as $namespaceItem => $namespaceDirs) {
+                if (strpos($namespace, $namespaceItem) !== 0) continue;
+
+                foreach($namespaceDirs as $path) {
+                    if (is_file($path . DIRECTORY_SEPARATOR . $classNameAsPath)) {
+                        return $path . DIRECTORY_SEPARATOR . $classNameAsPath;
+                    }
+                }
+            }
+
+            foreach ($this->_namespacesSharedDirs as $path) {
+                if (is_file($path . DIRECTORY_SEPARATOR . $className . '.php')) {
+                    return $path . DIRECTORY_SEPARATOR . $className . '.php';
+                }
+            }
+
+        } else {
+            $classNameAsPath = str_replace('_', DIRECTORY_SEPARATOR, $className) . '.php';
+            foreach($this->_prefixesPaths as $prefixItem => $prefixDirs) {
+                if (strpos($className, $prefixItem) !== 0) continue;
+
+                foreach($prefixDirs as $path) {
+                    if (is_file($path . DIRECTORY_SEPARATOR . $classNameAsPath)) {
+                        return $path . DIRECTORY_SEPARATOR . $classNameAsPath;
+                    }
+                }
+            }
+
+            foreach ($this->_sharedPaths as $path) {
+                if (is_file($path . DIRECTORY_SEPARATOR . $classNameAsPath)) {
+                    return $path . DIRECTORY_SEPARATOR . $classNameAsPath;
+                }
+            }
+
         }
-        if (empty($this->_config['path'])) {
-            $this->_config['path'] = Inflector::camelize($this->_name) . '/';
+        return null;
+    }
+
+    public function loadClass($className) {
+        if ($filePath = $this->detectClassLocation($className)) {
+            require_once $filePath;
+
+            return true;
         }
-        $this->_namespace = Inflector::camelize($this->_name);
-        $this->_root      = DC::getEnvironment()->getApplicationRoot() . $this->_config['path'];
-        DC::getAutoloader()->registerNamespacePath($this->_namespace, DC::getEnvironment()->getApplicationRoot());
-        ControllerService::setActiveNamespace($this->_namespace);
-        return $this->_name;
+        return false;
     }
 
-    /**
-     * @return mixed
-     */
-    public function getName() {
-        return $this->_name;
+    public function register($prepend = true) {
+        ini_set('unserialize_callback_func', 'spl_autoload_call');
+        if (false === spl_autoload_register(array($this, 'loadClass'), true, $prepend)) {
+            throw new \Exception(sprintf('Unable to register %s::autoload as an autoloading method.', get_called_class()));
+        }
     }
 
-    /**
-     * @return mixed
-     */
-    public function getRoot() {
-        return $this->_root;
-    }
-
-    public function getConfig() {
-        return $this->_config;
-    }
-
-    /**
-     * @return ApplicationRoute
-     */
-    public function getRoute() {
-        return $this->_route;
-    }
-
-    public function setRoute(ApplicationRoute $route) {
-        $this->_route = $route;
-    }
-
-    public function getEventListeners() {
-        return array(
-            'kernel.ready' => array(
-                'listener' => array($this, 'run'),
-            )
-        );
+    public function unregister() {
+        spl_autoload_unregister(array($this, 'loadClass'));
     }
 
 }
