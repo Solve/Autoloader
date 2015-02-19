@@ -57,7 +57,7 @@ class Autoloader {
     public function detectClassLocation($className) {
         if (($pos = strrpos($className, '\\')) !== false) {
             $namespace = substr($className, 0, $pos);
-            $className = substr($className, $pos + 2);
+            $className = substr($className, $pos + 1);
             $classNameAsPath = str_replace('\\', DIRECTORY_SEPARATOR, $namespace) . DIRECTORY_SEPARATOR . str_replace('_', DIRECTORY_SEPARATOR, $className) . '.php';
             foreach($this->_namespacesPaths as $namespaceItem => $namespaceDirs) {
                 if (strpos($namespace, $namespaceItem) !== 0) continue;
