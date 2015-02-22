@@ -37,7 +37,7 @@ class AutoloaderTest extends \PHPUnit_Framework_TestCase {
         $this->assertNull($loader->detectClassLocation('NonExistsClass'));
 
         $this->assertNotNull($loader->detectClassLocation('Foo2\\AltFooClass'));
-        $this->assertNotNull($loader->detectClassLocation('User'));
+        $this->assertNotNull($loader->detectClassLocation('UserFooClass'));
     }
 
 

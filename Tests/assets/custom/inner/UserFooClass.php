@@ -7,6 +7,6 @@
  * created: 10/27/14 2:55 PM
  */
 
-class User {
+class UserFooClass {
 
 }
