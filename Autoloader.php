@@ -10,6 +10,13 @@
 namespace Solve\Autoloader;
 
 
+/**
+ * Class Autoloader
+ * @package Solve\Autoloader
+ *
+ * @version 1.0.5
+ * @author Alexandr Viniychuk <a@viniychuk.com>
+ */
 class Autoloader {
 
     private $_namespacesPaths = array();
@@ -68,10 +75,11 @@ class Autoloader {
                     }
                 }
             }
-
             foreach ($this->_namespacesSharedDirs as $path) {
                 if (is_file($path . DIRECTORY_SEPARATOR . $className . '.php')) {
                     return $path . DIRECTORY_SEPARATOR . $className . '.php';
+                } elseif (is_file($path . DIRECTORY_SEPARATOR . $classNameAsPath)) {
+                    return $path . DIRECTORY_SEPARATOR . $classNameAsPath;
                 }
             }
 
@@ -111,6 +119,7 @@ class Autoloader {
         if (false === spl_autoload_register(array($this, 'loadClass'), true, $prepend)) {
             throw new \Exception(sprintf('Unable to register %s::autoload as an autoloading method.', get_called_class()));
         }
+        return $this;
     }
 
     public function unregister() {
