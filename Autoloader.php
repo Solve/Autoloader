@@ -34,8 +34,20 @@ class Autoloader {
         return $this;
     }
 
-    public function registerNamespaceSharedPaths($path) {
-        $this->_namespacesSharedDirs = array_merge($this->_namespacesSharedDirs, (array)$path);
+    public function registerNamespaceSharedPaths($paths, $recursive = false) {
+        $paths = (array)$paths;
+        if ($recursive) {
+            foreach($paths as $path) {
+                foreach(glob($path . '/*') as $filePath) {
+                    if (is_dir($filePath)) {
+                        $this->_namespacesSharedDirs[] = $filePath;
+                    }
+                }
+            }
+        }
+
+        $this->_namespacesSharedDirs = array_merge($this->_namespacesSharedDirs, $paths);
+        $this->_namespacesSharedDirs = array_unique($this->_namespacesSharedDirs);
         return $this;
     }
 
